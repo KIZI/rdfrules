@@ -1,0 +1,44 @@
+name: GitHub Auto Release
+on: workflow_dispatch
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4.5.0
+        with:
+          java-version: 11
+          distribution: corretto
+          cache: sbt
+      - name: Compile Scala
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
+          chmod 777 pack-release.sh
+          sbt "project http" pack
+          sbt "project gui" fullOptJS
+      - name: Make archive
+        id: make-archive
+        run: ./pack-release.sh
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ steps.make-archive.outputs.VERSION }}
+          release_name: RDFRules v${{ steps.make-archive.outputs.VERSION }}
+          draft: false
+          prerelease: false
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} 
+          asset_path: ./rdfrules-${{ steps.make-archive.outputs.VERSION }}.zip
+          asset_name: rdfrules-${{ steps.make-archive.outputs.VERSION }}.zip
+          asset_content_type: application/zip
